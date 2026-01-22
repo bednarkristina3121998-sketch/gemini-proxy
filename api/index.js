@@ -1,29 +1,29 @@
-export default async function handler(req, res) {
-  // 1. 获取原始请求路径，并去掉开头的 /api
-  // 比如把 /api/v1beta/models 变成 /v1beta/models
-  const path = req.url.replace(/^\/api/, "");
+export default async function handler(req) {
+  const { searchParams } = new URL(req.url, `https://${req.headers.get('host')}`);
+  
+  // 1. 从参数里提取真正的路径和 Key
+  const realPath = searchParams.get('path') || '/v1beta/models';
+  const apiKey = searchParams.get('key');
 
-  // 2. 拼接完整的 Google API 地址
-  const targetUrl = `https://generativelanguage.googleapis.com${path}`;
+  // 2. 拼装成发给 Google 的最终地址
+  const googleUrl = `https://generativelanguage.googleapis.com${realPath}?key=${apiKey}`;
 
   try {
-    const response = await fetch(targetUrl, {
+    const response = await fetch(googleUrl, {
       method: req.method,
       headers: {
         "Content-Type": "application/json",
       },
-      // 只有 POST 请求（发消息）才需要传内容
-      body: req.method === "POST" ? await req.text() : undefined,
+      // 如果是发消息（POST），就把内容传给 Google
+      body: req.method === "POST" ? await req.text() : null,
     });
 
-    const data = await response.json();
-    
-    // 3. 把 Google 的回答原封不动传回给你的小程序
-    return new Response(JSON.stringify(data), {
+    const data = await response.text();
+    return new Response(data, {
       status: response.status,
       headers: { "Content-Type": "application/json" },
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
 }
